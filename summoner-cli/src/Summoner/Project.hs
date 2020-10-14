@@ -36,7 +36,7 @@ import Summoner.Question (YesNoPrompt (..), checkUniqueName, choose, doesExistPr
                           falseMessage, mkDefaultYesNoPrompt, query, queryDef,
                           queryManyRepeatOnFail, queryWithPredicate, targetMessageWithText,
                           trueMessage)
-import Summoner.Settings (Settings (..))
+import Summoner.Settings (Settings (..), BuildSystem(..), boolsToBuildSystem)
 import Summoner.Source (fetchSources)
 import Summoner.Template (createProjectTemplate)
 import Summoner.Text (intercalateMap, moduleNameValid, packageNameValid, packageToModule)
@@ -65,7 +65,7 @@ generateProjectInteractive
 generateProjectInteractive connectMode projectName ConfigP{..} = do
     settingsRepo <- checkUniqueName projectName
     -- decide cabal stack or both
-    (settingsCabal, settingsStack) <- getCabalStack (cCabal, cStack)
+    settingsBuildSystem <- getCabalStack (cCabal, cStack)
 
     settingsOwner       <- queryDef "Repository owner: " cOwner
     settingsDescription <- queryDef "Short project description: " defaultDescription
@@ -98,7 +98,7 @@ generateProjectInteractive connectMode projectName ConfigP{..} = do
         (settingsGitHub && not settingsNoUpload)
         (YesNoPrompt "private repository" "Create as a private repository (Requires a GitHub private repo plan)?")
         cPrivate
-    settingsGhActions <- decisionIf (settingsCabal && settingsGitHub) (mkDefaultYesNoPrompt "GitHub Actions CI integration") cGhActions
+    settingsGhActions <- decisionIf settingsGitHub (mkDefaultYesNoPrompt "GitHub Actions CI integration") cGhActions
     settingsTravis    <- decisionIf settingsGitHub (mkDefaultYesNoPrompt "Travis CI integration") cTravis
     settingsAppVeyor  <- decisionIf settingsGitHub (mkDefaultYesNoPrompt "AppVeyor CI integration") cAppVey
     settingsIsLib     <- promptDecisionToBool cLib (mkDefaultYesNoPrompt "library target")
@@ -187,11 +187,16 @@ generateProjectInteractive connectMode projectName ConfigP{..} = do
 
     -- get what build tool to use in the project
     -- If user chose only one during CLI, we assume to use only that one.
-    getCabalStack :: (Decision, Decision) -> IO (Bool, Bool)
+    getCabalStack :: (Decision, Decision) -> IO BuildSystem
     getCabalStack = \case
-        (Idk, Idk) -> promptDecisionToBool cCabal (mkDefaultYesNoPrompt "cabal") >>= \c ->
-            if c then promptDecisionToBool cStack (mkDefaultYesNoPrompt "stack") >>= \s -> pure (c, s)
-            else stackMsg True >> pure (False, True)
+        (Idk, Idk) -> do
+            c <- promptDecisionToBool cCabal (mkDefaultYesNoPrompt "cabal")
+            if c then do
+                s <- promptDecisionToBool cStack (mkDefaultYesNoPrompt "stack")
+                return $ bool UseCabal UseCabalAndStack s
+            else do
+                _ <- stackMsg True
+                return UseStack
         (Nop, Nop) -> errorMessage "Neither cabal nor stack was chosen" >> exitFailure
         (Yes, Yes) -> output (True, True)
         (Yes, _)   -> output (True, False)
@@ -199,8 +204,8 @@ generateProjectInteractive connectMode projectName ConfigP{..} = do
         (Nop, Idk) -> output (False, True)
         (Idk, Nop) -> output (True, False)
       where
-        output :: (Bool, Bool) -> IO (Bool, Bool)
-        output x@(c, s) = cabalMsg c >> stackMsg s >> pure x
+        output :: (Bool, Bool) -> IO BuildSystem
+        output x@(c, s) = cabalMsg c >> stackMsg s >> pure (boolsToBuildSystem x)
 
         cabalMsg c = targetMessageWithText c "Cabal" "used in this project"
         stackMsg c = targetMessageWithText c "Stack" "used in this project"
@@ -221,7 +226,7 @@ generateProjectNonInteractive connectMode projectName ConfigP{..} = do
         exitFailure
     let settingsRepo = projectName
     -- decide cabal stack or both
-    let (settingsCabal, settingsStack) = decisionsToBools (cCabal, cStack)
+    let settingsBuildSystem = (boolsToBuildSystem . decisionsToBools) (cCabal, cStack)
 
     let settingsOwner       = cOwner
     let settingsDescription = defaultDescription
@@ -241,7 +246,7 @@ generateProjectNonInteractive connectMode projectName ConfigP{..} = do
     let settingsNoUpload = getAny cNoUpload || isOffline connectMode
 
     let settingsPrivate = decisionIf (settingsGitHub && not settingsNoUpload) cPrivate
-    let settingsGhActions = decisionIf (settingsCabal && settingsGitHub) cGhActions
+    let settingsGhActions = decisionIf (settingsBuildSystem `elem` [UseCabal, UseCabalAndStack] && settingsGitHub) cGhActions
     let settingsTravis    = decisionIf settingsGitHub cTravis
     let settingsAppVeyor  = decisionIf settingsGitHub cAppVey
     let (settingsIsLib, settingsIsExe) = decisionsToBools (cLib, cExe)

@@ -18,7 +18,7 @@ module Summoner.Template.Doc
        ) where
 
 import Summoner.License (License (..), LicenseName (NONE))
-import Summoner.Settings (Settings (..))
+import Summoner.Settings (Settings (..), BuildSystem(..))
 import Summoner.Tree (TreeFs (..))
 
 import qualified Data.Text as T
@@ -30,6 +30,8 @@ docFiles Settings{..} =
     , File "CHANGELOG.md" changelog ] ++
     [ File "LICENSE" (unLicense settingsLicenseText) | hasLicense ]
   where
+    useStack = settingsBuildSystem `elem` [UseStack, UseCabalAndStack]
+    useCabal = settingsBuildSystem `elem` [UseCabal, UseCabalAndStack]
     hasLicense :: Bool
     hasLicense = settingsLicenseName /= NONE
 
@@ -45,8 +47,8 @@ docFiles Settings{..} =
      ++ [travisBadge        | settingsTravis]
      ++ [appVeyorBadge      | settingsAppVeyor]
      ++ [hackageBadge]
-     ++ [stackLtsBadge      | settingsStack]
-     ++ [stackNightlyBadge  | settingsStack]
+     ++ [stackLtsBadge      | useStack]
+     ++ [stackNightlyBadge  | useStack]
      ++ [licenseBadge       | hasLicense]
      ++ [""
         , settingsDescription

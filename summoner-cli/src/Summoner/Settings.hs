@@ -12,6 +12,8 @@ Complete settings required for the project creation.
 module Summoner.Settings
        ( Settings (..)
 
+       , BuildSystem (..)
+       , boolsToBuildSystem
        , Tool (..)
        , showTool
        , parseTool
@@ -24,6 +26,16 @@ import Summoner.GhcVer (GhcVer)
 import Summoner.License (License, LicenseName)
 import Summoner.Tree (TreeFs)
 
+data BuildSystem
+    = UseCabal
+    | UseStack
+    | UseCabalAndStack
+    deriving stock (Show, Eq, Enum, Bounded)
+
+boolsToBuildSystem :: (Bool,Bool) -> BuildSystem
+boolsToBuildSystem (True, True)  = UseCabalAndStack
+boolsToBuildSystem (True, False) = UseCabal
+boolsToBuildSystem (False, True) = UseStack
 
 -- | Data needed for project creation.
 data Settings = Settings
@@ -50,8 +62,7 @@ data Settings = Settings
     , settingsExtensions     :: ![Text] -- ^ default extensions
     , settingsGhcOptions     :: ![Text] -- ^ default GHC options
     , settingsGitignore      :: ![Text] -- ^ .gitignore file
-    , settingsCabal          :: !Bool
-    , settingsStack          :: !Bool
+    , settingsBuildSystem    :: !BuildSystem
     , settingsNoUpload       :: !Bool  -- ^ do not upload to GitHub
     , settingsFiles          :: ![TreeFs]  -- ^ Tree nodes of extra files
     } deriving stock (Show)

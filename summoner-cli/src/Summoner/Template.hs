@@ -13,7 +13,7 @@ module Summoner.Template
        ( createProjectTemplate
        ) where
 
-import Summoner.Settings (Settings (..))
+import Summoner.Settings (Settings (..), BuildSystem(..))
 import Summoner.Template.Cabal (cabalFile)
 import Summoner.Template.Doc (docFiles)
 import Summoner.Template.GitHub (gitHubFiles)
@@ -36,10 +36,10 @@ createProjectTemplate settings@Settings{..} = Dir
         , docs
         , gitHub
         ]
-
+    useStack = settingsBuildSystem `elem` [UseStack, UseCabalAndStack]
     cabal, stack :: [TreeFs]
     cabal = [cabalFile settings]
-    stack = memptyIfFalse settingsStack $ stackFiles settings
+    stack = memptyIfFalse useStack $ stackFiles settings
 
     haskell, docs, gitHub :: [TreeFs]
     haskell = haskellFiles settings

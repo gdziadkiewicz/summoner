@@ -88,8 +88,7 @@ fullBatteries = Settings
     , settingsExtensions     = ["ConstraintKinds", "LambdaCase", "OverloadedStrings"]
     , settingsGitignore      = [".secret"]
     , settingsGhcOptions     = ["-Wcompat", "-Widentities"]
-    , settingsCabal          = True
-    , settingsStack          = True
+    , settingsBuildSystem    = UseCabalAndStack
     , settingsNoUpload       = True
     , settingsFiles          =
         [ File "extra.txt" "See full content of the file [here](@github)\n"

@@ -31,7 +31,7 @@ import Data.List (delete, intersect)
 
 import Summoner.Default (defaultCabal, defaultGHC)
 import Summoner.GhcVer (GhcVer (..), oldGhcs, showGhcVer)
-import Summoner.Settings (Settings (..))
+import Summoner.Settings (Settings (..), BuildSystem(..))
 import Summoner.Text (quote)
 import Summoner.Tree (TreeFs (..))
 
@@ -44,6 +44,8 @@ gitHubFiles Settings{..} = concat
     , [File "appveyor.yml" appVeyorYml | settingsAppVeyor]
     ]
   where
+    useStack = settingsBuildSystem `elem` [UseStack, UseCabalAndStack]
+    useCabal = settingsBuildSystem `elem` [UseCabal, UseCabalAndStack]
     -- default .gitignore template
     gitignoreDefault :: Text
     gitignoreDefault = unlines
@@ -195,14 +197,14 @@ gitHubFiles Settings{..} = concat
         ]
 
     travisCabalCache, travisStackCache :: [Text]
-    travisCabalCache = memptyIfFalse settingsCabal ["  - " <> quote "$HOME/.cabal/store"]
-    travisStackCache = memptyIfFalse settingsStack
+    travisCabalCache = memptyIfFalse useCabal ["  - " <> quote "$HOME/.cabal/store"]
+    travisStackCache = memptyIfFalse useStack
         [ "  - " <> quote "$HOME/.stack"
         , "  - " <> quote "$TRAVIS_BUILD_DIR/.stack-work"
         ]
 
     travisCabalMtr :: [Text]
-    travisCabalMtr = memptyIfFalse settingsCabal $
+    travisCabalMtr = memptyIfFalse useCabal $
         map travisCabalMatrixItem settingsTestedVersions
 
     travisCabalMatrixItem :: GhcVer -> Text
@@ -211,12 +213,12 @@ gitHubFiles Settings{..} = concat
     -- Due to the Stack issues with newer Cabal versions TravisCI for 'oldGhcs'
     -- can fail. Possible failure jobs are added to the @allow-failures@ section.
     travisStackMtr :: [Text]
-    travisStackMtr = memptyIfFalse settingsStack $
+    travisStackMtr = memptyIfFalse useStack $
         concatMap travisStackMatrixItem (delete defaultGHC settingsTestedVersions)
         <> travisStackMatrixDefaultItem
 
     travisStackAllowFailuresMtr :: [Text]
-    travisStackAllowFailuresMtr = memptyIfFalse (settingsStack && not (null old)) $
+    travisStackAllowFailuresMtr = memptyIfFalse (useStack && not (null old)) $
         [ ""
         , "  allow_failures:"
         ]
@@ -245,11 +247,11 @@ gitHubFiles Settings{..} = concat
         : "install:"
         : hlintCheck
         <>
-        if settingsCabal
-        then if settingsStack
-             then installScriptBoth
-             else installScriptCabal
-        else installScriptStack
+        (case settingsBuildSystem of
+            UseCabal         -> installScriptCabal
+            UseStack         -> installScriptStack
+            UseCabalAndStack -> installScriptBoth
+        )
 
     installScriptBoth :: [Text]
     installScriptBoth =
@@ -317,7 +319,7 @@ gitHubFiles Settings{..} = concat
 
     appVeyorYml :: Text
     appVeyorYml = unlines $
-        if settingsCabal
+        if useCabal
         then appVeyorYmlCabal
         else appVeyorYmlStack
 
